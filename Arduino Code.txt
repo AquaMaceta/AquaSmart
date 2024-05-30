@@ -1,0 +1,347 @@
+// SISTEME DE AUTORRIEGO
+/*Este sistema busca ajustarse a las plantas a 3 niveles, cada nivel representa
+la cantidad de agua/humedad que necesitan la planta*/
+
+#include <LiquidCrystal.h>
+LiquidCrystal lcd(7, 6, 5, 4, 3, 2);
+
+// Other PINs
+int puerta = 11;
+int onLight = 12;
+int water = 13;
+int SensorPin = A0;
+
+int buzz = A5; // bocina
+
+// Botones-interfaz
+int typeButton = 8;
+int reiniciar = 9;
+int iniciar = 10;
+int parar = 11;
+
+// Temporizador espera
+int segundos = 0;
+int minutos = 0;
+int horas = 24;
+int suma = 0;
+int totaltiempo = 0;
+
+// Estado 0 = Settear tipo de planta
+// Estado 1 = Soltar agua
+// Estado 2 = Pausa
+// Estado 3 = Espera para soltar agua
+int estado = 0;
+
+// Intern values
+int plantType = 1;
+int maxHumidity = 0;
+int Suelo = 0;
+bool isPaused = false;
+
+void setup()
+{
+  lcd.begin(16, 2);
+  lcd.setCursor(0, 1); // colm,fila
+
+  pinMode(8, INPUT);
+  pinMode(9, INPUT);
+  pinMode(10, INPUT);
+  pinMode(11, INPUT);
+
+  pinMode(12, OUTPUT);
+  pinMode(13, OUTPUT);
+
+  pinMode(A5, OUTPUT);
+
+  digitalRead(onLight) == LOW;
+
+  lcd.setCursor(0, 0);
+  lcd.print("TECH RODENTS");
+  delay(2000);
+  lcd.setCursor(0, 1);
+  lcd.print("CARGANDO.");
+  delay(500);
+
+  lcd.setCursor(0, 1);
+  lcd.print("CARGANDO..");
+  delay(500);
+
+  lcd.setCursor(0, 1);
+  lcd.print("CARGANDO...");
+  delay(500);
+  lcd.clear();
+
+  estado = 0;
+  Serial.begin(9600);
+}
+
+void loop()
+{
+  // Estado de asignación de tipo de planta
+  if (estado == 0)
+  {
+    lcd.setCursor(0, 0);
+    lcd.print("TIPO DE PLANTA");
+
+    lcd.setCursor(0, 1);
+    lcd.print(" MODO     ");
+
+    Serial.println(plantType);
+    if (digitalRead(typeButton) == HIGH)
+    {
+      digitalWrite(buzz, HIGH);
+      plantType = plantType + 1;
+      delay(20);
+      digitalWrite(buzz, LOW);
+
+      if (plantType > 3)
+      {
+        plantType = 1;
+      }
+    }
+
+    lcd.setCursor(13, 1);
+    lcd.print("0");
+    lcd.print(plantType);
+    delay(200);
+
+    if (digitalRead(iniciar) == HIGH)
+    {
+      digitalWrite(buzz, HIGH);
+      delay(20);
+      digitalWrite(buzz, LOW);
+      lcd.clear();
+      estado = estado + 1;
+      delay(200);
+    }
+    return;
+  }
+
+  // Se lee el valor del sensor y se escribe en el puerto serie
+  int humedad = analogRead(SensorPin);
+
+  // Estado de riego
+  if (estado == 1)
+  {
+    ActivarRiego();
+    // Datos en pantalla
+    lcd.setCursor(13, 1);
+    lcd.print("  ");
+    lcd.setCursor(0, 0);
+    lcd.print("WATER TIME");
+    lcd.setCursor(0, 1);
+    lcd.print("REGANDO...");
+    delay(500);
+    lcd.setCursor(0, 1);
+    lcd.print("REGANDO.. ");
+    delay(500);
+    lcd.setCursor(0, 1);
+    lcd.print("REGANDO.  ");
+    delay(500);
+    lcd.setCursor(0, 1);
+    lcd.print("REGANDO.. ");
+    delay(500);
+    // Volver al modo asignación
+    if (digitalRead(reiniciar) == HIGH)
+    {
+      digitalWrite(buzz, HIGH);
+      delay(20);
+      digitalWrite(buzz, LOW);
+      DesactivarRiego();
+      lcd.clear();
+      estado = 0;
+    }
+    // Ir al modo pausa
+    if (digitalRead(parar) == HIGH)
+    {
+      digitalWrite(buzz, HIGH);
+      delay(20);
+      digitalWrite(buzz, LOW);
+      DesactivarRiego();
+      lcd.clear();
+      estado = 2;
+    }
+    // Asignar valores segun el tipo de planta elegido
+    switch (plantType)
+    {
+    case 1:
+      maxHumidity = 430;
+      horas = 0;
+      minutos = 0;
+      segundos = 10;
+      break;
+    case 2:
+      maxHumidity = 650;
+      horas = 0;
+      minutos = 0;
+      segundos = 10;
+      break;
+    case 3:
+      maxHumidity = 870;
+      horas = 0;
+      minutos = 0;
+      segundos = 10;
+      break;
+    }
+    // Si se alcanza el nivel maximo de humedad se va al estado de espera
+    if (humedad >= maxHumidity && !isPaused)
+    {
+      digitalWrite(buzz, HIGH);
+      delay(20);
+      digitalWrite(buzz, LOW);
+      DesactivarRiego();
+      lcd.clear();
+      estado = 3;
+    }
+  }
+
+  if (estado == 2)
+  {
+    // Datos en pantalla
+    lcd.setCursor(0, 0);
+    lcd.print("PAUSE MODE");
+    lcd.setCursor(0, 1);
+    lcd.print("WAITTING...");
+    digitalWrite(onLight, LOW);
+    delay(500);
+    lcd.setCursor(0, 1);
+    lcd.print("WAITTING.. ");
+    delay(500);
+    lcd.setCursor(0, 1);
+    lcd.print("WAITTING.  ");
+    digitalWrite(onLight, HIGH);
+    delay(500);
+    lcd.setCursor(0, 1);
+    lcd.print("WAITTING.. ");
+    delay(500);
+    // Volver al modo riego
+    if (digitalRead(parar) == HIGH)
+    {
+      digitalWrite(buzz, HIGH);
+      delay(20);
+      digitalWrite(buzz, LOW);
+      ActivarRiego();
+      lcd.clear();
+      estado = 1;
+    }
+  }
+
+  while (estado == 3)
+  {
+    lcd.setCursor(0, 0);
+    lcd.print("WAITTING TIME");
+
+    if (horas > 0)
+    {
+      lcd.setCursor(1, 1);
+      lcd.print("Hrs:00");
+
+      lcd.setCursor(9, 1);
+      lcd.print("Min:00");
+    }
+    else
+    {
+      lcd.setCursor(1, 1);
+      lcd.print("Min:00");
+
+      lcd.setCursor(9, 1);
+      lcd.print("Seg:00");
+    }
+
+    segundos = segundos - 1;
+    if (segundos < 0)
+    {
+      if (minutos > 0)
+      {
+        segundos = 59;
+        minutos = minutos - 1;
+      }
+      else if ((horas > 0) && (minutos < 0))
+      {
+        minutos = 59;
+        horas = horas - 1;
+      }
+    }
+
+    if ((segundos == 0) && (minutos == 0) && (horas == 0))
+    {
+      // solido de Buzzer//
+      digitalWrite(buzz, HIGH);
+      delay(80);
+      digitalWrite(buzz, LOW);
+      delay(50);
+      digitalWrite(buzz, HIGH);
+      delay(80);
+      digitalWrite(buzz, LOW);
+      delay(50);
+      digitalWrite(buzz, HIGH);
+      delay(80);
+      digitalWrite(buzz, LOW);
+      delay(50);
+      digitalWrite(buzz, HIGH);
+      delay(100);
+      digitalWrite(buzz, LOW);
+      delay(50);
+      // fin de sonido//
+      lcd.clear();
+      estado = 1;
+    }
+
+    if (horas > 0)
+    {
+      // Valor de horas y minutos a la pantalla
+      lcd.setCursor(13, 1);
+      if (minutos < 10)
+      {
+        lcd.print("0");
+      }
+      lcd.print(minutos);
+
+      lcd.setCursor(5, 1);
+      if (horas < 10)
+      {
+        lcd.print("0");
+      }
+      lcd.print(horas);
+    }
+    else
+    {
+      lcd.setCursor(13, 1);
+
+      if (segundos < 10)
+      {
+        lcd.print("0");
+      }
+      lcd.print(segundos);
+
+      lcd.setCursor(5, 1);
+      if (minutos < 10)
+      {
+        lcd.print("0");
+      }
+      lcd.print(minutos);
+    }
+
+    delay(1000);
+  }
+}
+
+void ActivarRiego()
+{
+  digitalWrite(water, HIGH);
+  digitalWrite(onLight, HIGH);
+}
+
+void DesactivarRiego()
+{
+  digitalWrite(water, LOW);
+  digitalWrite(onLight, LOW);
+}
+
+void PauseWaterFeedback()
+{
+  digitalWrite(water, LOW);
+  digitalWrite(onLight, LOW);
+  delay(300);
+  digitalWrite(onLight, HIGH);
+}
